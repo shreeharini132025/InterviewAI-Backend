@@ -39,13 +39,7 @@ const corsOptions = {
   },
   credentials: true,
 };
-app.use(cors({
-  origin: [
-    "https://interview-ai-frontend-6e9i9e6y5.vercel.app",
-    "https://interview-ai-frontend-two.vercel.app"
-  ],
-  credentials: true
-}));
+
 
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
@@ -87,4 +81,4 @@ app.listen(PORT, () => {
 });
 
 module.exports = app;
-app.use(cors());
+
