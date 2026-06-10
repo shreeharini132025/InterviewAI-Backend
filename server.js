@@ -15,8 +15,16 @@ const allowedOrigins = [
   /^https?:\/\/[a-z0-9-]+\.inc1\.devtunnels\.ms$/i,
 ];
 
+const explicitOrigins = new Set(
+  String(process.env.CORS_ORIGINS || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+);
+
 function isAllowedOrigin(origin) {
   if (!origin) return true;
+  if (explicitOrigins.has(origin)) return true;
   return allowedOrigins.some((pattern) => pattern.test(origin));
 }
 
