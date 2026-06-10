@@ -8,6 +8,9 @@ const app = express();
 const allowedOrigins = [
   /^https?:\/\/localhost:\d+$/,
   /^https?:\/\/127\.0\.0\.1:\d+$/,
+  /^https?:\/\/[a-z0-9-]+\.vercel\.app$/i,
+  /^https?:\/\/[a-z0-9-]+\.[a-z0-9-]+\.vercel\.app$/i,
+  /^https?:\/\/[a-z0-9-]+\.onrender\.com$/i,
   /^https?:\/\/[a-z0-9-]+\.\d+\.inc1\.devtunnels\.ms$/i,
   /^https?:\/\/[a-z0-9-]+\.inc1\.devtunnels\.ms$/i,
 ];
@@ -18,7 +21,7 @@ function isAllowedOrigin(origin) {
 }
 
 // Middleware
-app.use(cors({
+const corsOptions = {
   origin(origin, callback) {
     if (isAllowedOrigin(origin)) {
       return callback(null, true);
@@ -27,16 +30,24 @@ app.use(cors({
     return callback(new Error(`CORS blocked for origin: ${origin}`));
   },
   credentials: true,
-}));
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
+app.use('/auth', require('./routes/auth'));
 app.use('/api/questions', require('./routes/questions'));
+app.use('/questions', require('./routes/questions'));
 app.use('/api/interview', require('./routes/interview'));
+app.use('/interview', require('./routes/interview'));
 app.use('/api/dashboard', require('./routes/dashboard'));
+app.use('/dashboard', require('./routes/dashboard'));
 app.use('/api/admin', require('./routes/admin'));
+app.use('/admin', require('./routes/admin'));
 
 // Health check
 app.get('/api/health', (req, res) => {
