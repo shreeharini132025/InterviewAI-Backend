@@ -1,0 +1,63 @@
+const express = require('express');
+const cors = require('cors');
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env'), override: true });
+
+const app = express();
+
+const allowedOrigins = [
+  /^https?:\/\/localhost:\d+$/,
+  /^https?:\/\/127\.0\.0\.1:\d+$/,
+  /^https?:\/\/[a-z0-9-]+\.\d+\.inc1\.devtunnels\.ms$/i,
+  /^https?:\/\/[a-z0-9-]+\.inc1\.devtunnels\.ms$/i,
+];
+
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  return allowedOrigins.some((pattern) => pattern.test(origin));
+}
+
+// Middleware
+app.use(cors({
+  origin(origin, callback) {
+    if (isAllowedOrigin(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
+  credentials: true,
+}));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
+
+// Routes
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/questions', require('./routes/questions'));
+app.use('/api/interview', require('./routes/interview'));
+app.use('/api/dashboard', require('./routes/dashboard'));
+app.use('/api/admin', require('./routes/admin'));
+
+// Health check
+app.get('/api/health', (req, res) => {
+  res.json({ success: true, message: 'Smart Interview Platform API is running!', timestamp: new Date() });
+});
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ success: false, message: 'Route not found.' });
+});
+
+// Error handler
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err);
+  res.status(500).json({ success: false, message: 'Internal server error.' });
+});
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`\n🚀 Smart Interview Platform API running on http://localhost:${PORT}`);
+  console.log(`📊 Health: http://localhost:${PORT}/api/health\n`);
+});
+
+module.exports = app;
