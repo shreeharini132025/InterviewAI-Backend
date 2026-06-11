@@ -40,6 +40,7 @@ function parseBoolean(value) {
 
 const useSsl = parseBoolean(process.env.DB_SSL);
 const caPath = path.join(__dirname, '..', 'isrgrootx1.pem');
+const schemaPath = path.join(__dirname, '..', 'db', 'schema.sql');
 
 const poolOptions = {
   host: dbHost,
@@ -67,4 +68,37 @@ if (useSsl && fs.existsSync(caPath)) {
 
 const pool = mysql.createPool(poolOptions);
 
+async function initializeDatabase() {
+  if (!fs.existsSync(schemaPath)) {
+    return;
+  }
+
+  const schemaSql = fs.readFileSync(schemaPath, 'utf8');
+  const bootstrapOptions = {
+    host: dbHost,
+    port: Number.isFinite(dbPort) ? dbPort : 3306,
+    user: 'root',
+    password: 2009,
+    database: 'sip_db',
+    multipleStatements: true,
+    connectTimeout: 10000
+  };
+
+  if (useSsl && fs.existsSync(caPath)) {
+    bootstrapOptions.ssl = {
+      ca: fs.readFileSync(caPath),
+      rejectUnauthorized: true
+    };
+  }
+
+  const connection = await mysql.createConnection(bootstrapOptions);
+
+  try {
+    await connection.query(schemaSql);
+  } finally {
+    await connection.end();
+  }
+}
+
 module.exports = pool;
+module.exports.initializeDatabase = initializeDatabase;

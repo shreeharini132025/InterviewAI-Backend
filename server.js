@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
+const db = require('./config/db');
 
 const app = express();
 
@@ -76,10 +77,22 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`\n🚀 Smart Interview Platform API running on http://localhost:${PORT}`);
-  console.log(`📊 Health: http://localhost:${PORT}/api/health\n`);
-});
+
+async function startServer() {
+  try {
+    await db.initializeDatabase();
+  } catch (err) {
+    console.error('Database initialization failed:', err);
+    process.exit(1);
+  }
+
+  app.listen(PORT, () => {
+    console.log(`\n🚀 Smart Interview Platform API running on http://localhost:${PORT}`);
+    console.log(`📊 Health: http://localhost:${PORT}/api/health\n`);
+  });
+}
+
+startServer();
 
 module.exports = app;
 
