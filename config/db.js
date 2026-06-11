@@ -33,6 +33,15 @@ const dbPassword = stripQuotes(process.env.DB_PASSWORD) || '';
 const dbName =
   stripQuotes(process.env.DB_NAME || process.env.DB_DATABASE) || 'sip_db';
 
+const hasExternalDbConfig = Boolean(
+  stripQuotes(process.env.DB_HOST) ||
+  stripQuotes(process.env.DB_PORT) ||
+  stripQuotes(process.env.DB_USER || process.env.DB_USERNAME) ||
+  stripQuotes(process.env.DB_PASSWORD) ||
+  stripQuotes(process.env.DB_NAME || process.env.DB_DATABASE) ||
+  stripQuotes(process.env.DATABASE_URL)
+);
+
 function parseBoolean(value) {
   if (typeof value !== 'string') return false;
   return ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase());
@@ -73,13 +82,17 @@ async function initializeDatabase() {
     return;
   }
 
+  if (!hasExternalDbConfig || dbHost === 'localhost' || dbHost === '127.0.0.1') {
+    return;
+  }
+
   const schemaSql = fs.readFileSync(schemaPath, 'utf8');
   const bootstrapOptions = {
     host: dbHost,
     port: Number.isFinite(dbPort) ? dbPort : 3306,
-    user: 'root',
-    password: 2009,
-    database: 'sip_db',
+    user: dbUser,
+    password: dbPassword,
+    database: dbName,
     multipleStatements: true,
     connectTimeout: 10000
   };
