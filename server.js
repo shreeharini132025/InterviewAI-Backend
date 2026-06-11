@@ -1,13 +1,14 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '.env'), override: true });
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const app = express();
 
 const allowedOrigins = [
   /^https?:\/\/localhost:\d+$/,
   /^https?:\/\/127\.0\.0\.1:\d+$/,
+  /^https?:\/\/[a-z0-9-]+\.github\.io$/i,
   /^https?:\/\/[a-z0-9-]+\.vercel\.app$/i,
   /^https?:\/\/[a-z0-9-]+\.[a-z0-9-]+\.vercel\.app$/i,
   /^https?:\/\/[a-z0-9-]+\.onrender\.com$/i,

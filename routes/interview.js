@@ -4,7 +4,7 @@ const db = require('../config/db');
 const auth = require('../middleware/auth');
 const axios = require('axios');
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '..', '.env'), override: true });
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 // POST /api/interview/start - Start a new interview session
 router.post('/start', auth, async (req, res) => {
