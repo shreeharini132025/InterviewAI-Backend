@@ -27,6 +27,38 @@ const dbUser = stripQuotes(process.env.DB_USER || process.env.DB_USERNAME) || 'r
 const dbPassword = stripQuotes(process.env.DB_PASSWORD) || '';
 const dbName = stripQuotes(process.env.DB_NAME || process.env.DB_DATABASE) || 'sip_db';
 
+function parseBoolean(value) {
+  if (typeof value !== 'string') return false;
+  return ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase());
+}
+
+function isTidbCloudHost(host) {
+  return typeof host === 'string' && /tidbcloud\.com$/i.test(host.trim());
+}
+
+function resolveSslOptions() {
+  const shouldUseSsl = parseBoolean(process.env.DB_SSL) || isTidbCloudHost(dbHost);
+
+  if (!shouldUseSsl) {
+    return null;
+  }
+
+  const caPath = path.join(__dirname, 'cert', 'isrgrootx1.pem');
+
+  if (fs.existsSync(caPath)) {
+    return {
+      ca: fs.readFileSync(caPath),
+      rejectUnauthorized: true,
+    };
+  }
+
+  return {
+    rejectUnauthorized: false,
+  };
+}
+
+const sslOptions = resolveSslOptions();
+
 function assertSafeDbName(name) {
   if (!/^[A-Za-z0-9_]+$/.test(name)) {
     throw new Error(
@@ -50,6 +82,7 @@ async function testConnection() {
       port: Number.isFinite(dbPort) ? dbPort : 3306,
       user: dbUser,
       password: dbPassword,
+      ...(sslOptions ? { ssl: sslOptions } : {}),
       multipleStatements: true,
     });
 

@@ -81,8 +81,32 @@ function parseBoolean(value) {
   return ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase());
 }
 
-const useSsl = parseBoolean(process.env.DB_SSL);
-const caPath = path.join(__dirname, '..', 'isrgrootx1.pem');
+function isTidbCloudHost(host) {
+  return typeof host === 'string' && /tidbcloud\.com$/i.test(host.trim());
+}
+
+function resolveSslOptions() {
+  const shouldUseSsl = parseBoolean(process.env.DB_SSL) || isTidbCloudHost(dbConfig && dbConfig.host);
+
+  if (!shouldUseSsl) {
+    return null;
+  }
+
+  const caPath = path.join(__dirname, '..', 'cert', 'isrgrootx1.pem');
+
+  if (fs.existsSync(caPath)) {
+    return {
+      ca: fs.readFileSync(caPath),
+      rejectUnauthorized: true
+    };
+  }
+
+  return {
+    rejectUnauthorized: false
+  };
+}
+
+const sslOptions = resolveSslOptions();
 const schemaPath = path.join(__dirname, '..', 'db', 'schema.sql');
 
 function createUnavailablePool() {
@@ -108,6 +132,7 @@ const pool = dbConfig
       user: dbConfig.user,
       password: dbConfig.password,
       database: dbConfig.database,
+      ...(sslOptions ? { ssl: sslOptions } : {}),
 
       waitForConnections: true,
       connectionLimit: 10,
@@ -140,11 +165,8 @@ async function initializeDatabase() {
     connectTimeout: 10000
   };
 
-  if (useSsl && fs.existsSync(caPath)) {
-    bootstrapOptions.ssl = {
-      ca: fs.readFileSync(caPath),
-      rejectUnauthorized: true
-    };
+  if (sslOptions) {
+    bootstrapOptions.ssl = sslOptions;
   }
 
   const connection = await mysql.createConnection(bootstrapOptions);
