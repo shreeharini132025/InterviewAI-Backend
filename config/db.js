@@ -2,9 +2,7 @@ const mysql = require('mysql2/promise');
 const fs = require('fs');
 const path = require('path');
 
-require('dotenv').config({
-  path: path.join(__dirname, '..', '.env')
-});
+require('./env');
 
 function stripQuotes(value) {
   if (typeof value !== 'string') return value;
@@ -21,26 +19,62 @@ function stripQuotes(value) {
   return trimmed;
 }
 
-const dbHost = stripQuotes(process.env.DB_HOST) || 'localhost';
-const dbPortRaw = stripQuotes(process.env.DB_PORT);
-const dbPort = dbPortRaw ? Number(dbPortRaw) : 3306;
+function parseMySqlUrl(rawValue) {
+  if (!rawValue) return null;
 
-const dbUser =
-  stripQuotes(process.env.DB_USER || process.env.DB_USERNAME) || 'root';
+  try {
+    const url = new URL(stripQuotes(rawValue));
+    if (!['mysql:', 'mysql2:'].includes(url.protocol)) return null;
 
-const dbPassword = stripQuotes(process.env.DB_PASSWORD) || '';
+    const databaseName = url.pathname.replace(/^\//, '');
 
-const dbName =
-  stripQuotes(process.env.DB_NAME || process.env.DB_DATABASE) || 'sip_db';
+    return {
+      host: url.hostname,
+      port: url.port ? Number(url.port) : 3306,
+      user: decodeURIComponent(url.username || ''),
+      password: decodeURIComponent(url.password || ''),
+      database: decodeURIComponent(databaseName || '')
+    };
+  } catch {
+    return null;
+  }
+}
 
-const hasExternalDbConfig = Boolean(
-  stripQuotes(process.env.DB_HOST) ||
-  stripQuotes(process.env.DB_PORT) ||
-  stripQuotes(process.env.DB_USER || process.env.DB_USERNAME) ||
-  stripQuotes(process.env.DB_PASSWORD) ||
-  stripQuotes(process.env.DB_NAME || process.env.DB_DATABASE) ||
-  stripQuotes(process.env.DATABASE_URL)
-);
+function resolveDbConfig() {
+  const mysqlUrl =
+    parseMySqlUrl(process.env.DATABASE_URL) ||
+    parseMySqlUrl(process.env.MYSQL_URL);
+
+  if (mysqlUrl) {
+    return {
+      host: mysqlUrl.host,
+      port: Number.isFinite(mysqlUrl.port) ? mysqlUrl.port : 3306,
+      user: mysqlUrl.user || 'root',
+      password: mysqlUrl.password || '',
+      database: mysqlUrl.database || 'sip_db'
+    };
+  }
+
+  const host = stripQuotes(process.env.DB_HOST);
+  const portRaw = stripQuotes(process.env.DB_PORT);
+  const user = stripQuotes(process.env.DB_USER || process.env.DB_USERNAME);
+  const password = stripQuotes(process.env.DB_PASSWORD);
+  const database = stripQuotes(process.env.DB_NAME || process.env.DB_DATABASE);
+
+  if (!host && !portRaw && !user && !password && !database) {
+    return null;
+  }
+
+  return {
+    host: host || 'localhost',
+    port: portRaw ? Number(portRaw) : 3306,
+    user: user || 'root',
+    password: password || '',
+    database: database || 'sip_db'
+  };
+}
+
+const dbConfig = resolveDbConfig();
 
 function parseBoolean(value) {
   if (typeof value !== 'string') return false;
@@ -51,48 +85,57 @@ const useSsl = parseBoolean(process.env.DB_SSL);
 const caPath = path.join(__dirname, '..', 'isrgrootx1.pem');
 const schemaPath = path.join(__dirname, '..', 'db', 'schema.sql');
 
-const poolOptions = {
-  host: dbHost,
-  port: Number.isFinite(dbPort) ? dbPort : 3306,
-  user: dbUser,
-  password: dbPassword,
-  database: dbName,
+function createUnavailablePool() {
+  const error = new Error(
+    'Database configuration is missing. Set DATABASE_URL or DB_HOST/DB_USER/DB_PASSWORD/DB_NAME in Render.'
+  );
+  error.code = 'DB_CONFIG_MISSING';
 
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
-
-  enableKeepAlive: true,
-  keepAliveInitialDelay: 0,
-
-  connectTimeout: 10000
-};
-
-if (useSsl && fs.existsSync(caPath)) {
-  poolOptions.ssl = {
-    ca: fs.readFileSync(caPath),
-    rejectUnauthorized: true
+  return {
+    query: async () => {
+      throw error;
+    },
+    execute: async () => {
+      throw error;
+    }
   };
 }
 
-const pool = mysql.createPool(poolOptions);
+const pool = dbConfig
+  ? mysql.createPool({
+      host: dbConfig.host,
+      port: Number.isFinite(dbConfig.port) ? dbConfig.port : 3306,
+      user: dbConfig.user,
+      password: dbConfig.password,
+      database: dbConfig.database,
+
+      waitForConnections: true,
+      connectionLimit: 10,
+      queueLimit: 0,
+
+      enableKeepAlive: true,
+      keepAliveInitialDelay: 0,
+
+      connectTimeout: 10000
+    })
+  : createUnavailablePool();
 
 async function initializeDatabase() {
   if (!fs.existsSync(schemaPath)) {
     return;
   }
 
-  if (!hasExternalDbConfig || dbHost === 'localhost' || dbHost === '127.0.0.1') {
+  if (!dbConfig) {
     return;
   }
 
   const schemaSql = fs.readFileSync(schemaPath, 'utf8');
   const bootstrapOptions = {
-    host: dbHost,
-    port: Number.isFinite(dbPort) ? dbPort : 3306,
-    user: dbUser,
-    password: dbPassword,
-    database: dbName,
+    host: dbConfig.host,
+    port: Number.isFinite(dbConfig.port) ? dbConfig.port : 3306,
+    user: dbConfig.user,
+    password: dbConfig.password,
+    database: dbConfig.database,
     multipleStatements: true,
     connectTimeout: 10000
   };
